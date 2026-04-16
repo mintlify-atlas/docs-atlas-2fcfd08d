@@ -1,0 +1,131 @@
+---
+title: 'ExcaliDash backend environment variables reference'
+description: 'Complete reference for every environment variable that controls the ExcaliDash backend — from core server settings to OIDC, security, and performance tuning.'
+---
+
+The ExcaliDash backend reads its configuration from environment variables at startup. The canonical example file is `backend/.env.example`; copy it to `backend/.env` for local development or pass the variables directly to your Docker Compose service. All values are validated by `backend/src/config.ts` before the server starts — an invalid or missing required variable will cause a startup failure with a descriptive error message.
+
+<Note>
+  In Docker Compose deployments, set variables under the `environment:` key of the `backend` service in your `docker-compose.prod.yml`. Secrets such as `JWT_SECRET` and `CSRF_SECRET` should be set explicitly rather than relying on auto-generation so that they survive container restarts and redeployments.
+</Note>
+
+## Core
+
+These variables control the fundamental runtime identity of the backend process.
+
+| Variable | Default | Description |
+|---|---|---|
+| `PORT` | `8000` | TCP port the Express server binds to inside the container. |
+| `NODE_ENV` | `development` | Runtime mode. Set to `production` to enable security hardening checks (JWT_SECRET enforcement, OIDC HTTPS requirement, etc.). |
+| `DATABASE_URL` | `file:/app/prisma/dev.db` | Prisma database connection string. Relative `file:` paths are resolved relative to the `prisma/` directory inside the backend. |
+| `FRONTEND_URL` | `http://localhost:6767` | Comma-separated list of allowed frontend origins used for CORS and HTTP→HTTPS redirect logic. Must match the public URL users access. |
+| `TRUST_PROXY` | `false` | Controls Express `trust proxy`. Set to `false` for direct connections, `true` for all proxies, or a positive integer (e.g., `1`) to trust exactly that many hops. Only enable when traffic always passes through a trusted reverse proxy that correctly sets forwarded headers. |
+
+<Warning>
+  Keep `TRUST_PROXY=false` unless all incoming requests pass through a reverse proxy you control. Enabling it incorrectly allows clients to spoof `X-Forwarded-*` headers.
+</Warning>
+
+## Security
+
+These variables govern token signing, CSRF protection, and rate limiting.
+
+| Variable | Default | Description |
+|---|---|---|
+| `JWT_SECRET` | *(required in production)* | Secret key used to sign and verify JWTs. Required when `NODE_ENV=production`. Must be at least 32 characters. In the Docker entrypoint, an ephemeral secret is generated and persisted to the backend volume if not provided — set an explicit value for portability across restarts and redeployments. |
+| `CSRF_SECRET` | *(none)* | Secret used to sign CSRF tokens. Recommended for production so CSRF validation remains stable across container restarts. If unset, a random value is used per process startup. |
+| `JWT_ACCESS_EXPIRES_IN` | `15m` | Lifetime of access tokens. Accepts any value parseable by the `jsonwebtoken` library (e.g., `15m`, `1h`). |
+| `JWT_REFRESH_EXPIRES_IN` | `7d` | Lifetime of refresh tokens. Accepts any value parseable by the `jsonwebtoken` library (e.g., `7d`, `30d`). |
+| `RATE_LIMIT_MAX_REQUESTS` | `1000` | Maximum number of requests allowed per IP per rate-limit window. Must be a positive integer. |
+| `CSRF_MAX_REQUESTS` | `60` | Maximum number of CSRF token issuance requests allowed per IP per window. Must be a positive integer. |
+
+<Tip>
+  Generate a strong JWT secret with: `openssl rand -hex 32`
+</Tip>
+
+## Authentication
+
+| Variable | Default | Description |
+|---|---|---|
+| `AUTH_MODE` | `local` | Controls which authentication providers are active. `local` — native email/password only. `hybrid` — native login plus OIDC. `oidc_enforced` — OIDC-only (disables `/auth/register` and `/auth/login`). |
+
+## OIDC
+
+<Accordion title="OIDC variables (required when AUTH_MODE=hybrid or oidc_enforced)">
+
+These variables are required whenever `AUTH_MODE` is set to `hybrid` or `oidc_enforced`. They are validated at startup — missing required OIDC variables when OIDC is enabled will cause the backend to refuse to start.
+
+| Variable | Default | Description |
+|---|---|---|
+| `OIDC_PROVIDER_NAME` | `OIDC` | Display name shown on the login button and in the UI (e.g., `Authentik`, `Keycloak`, `Google`). |
+| `OIDC_ISSUER_URL` | *(required)* | Base URL of your OIDC provider's issuer. Used for OpenID Connect discovery. |
+| `OIDC_CLIENT_ID` | *(required)* | Client ID registered in your identity provider. |
+| `OIDC_CLIENT_SECRET` | *(none)* | Client secret for confidential clients. Omit for public clients. Required if `OIDC_ID_TOKEN_SIGNED_RESPONSE_ALG` is set to an `HS*` algorithm. |
+| `OIDC_REDIRECT_URI` | *(required)* | Callback URL registered in your identity provider. Must match exactly. Must be HTTPS in production (e.g., `https://excalidash.example.com/api/auth/oidc/callback`). |
+| `OIDC_SCOPES` | `openid profile email` | Space-separated list of OIDC scopes to request. |
+| `OIDC_EMAIL_CLAIM` | `email` | JWT claim used to read the user's email address. |
+| `OIDC_EMAIL_VERIFIED_CLAIM` | `email_verified` | JWT claim used to check whether the email address is verified. |
+| `OIDC_REQUIRE_EMAIL_VERIFIED` | `true` | When `true`, users whose identity token does not include a verified email are rejected. |
+| `OIDC_JIT_PROVISIONING` | `true` | When `true`, user accounts are automatically created on first login. When `false`, users must be pre-created. |
+| `OIDC_FIRST_USER_ADMIN` | `true` | When `true`, the first user created via OIDC is granted the admin role. |
+| `OIDC_ID_TOKEN_SIGNED_RESPONSE_ALG` | `RS256` *(default behavior)* | Expected signing algorithm of the OIDC ID token. Defaults to `RS256`. Only set this if your IdP client is explicitly configured for a different algorithm (e.g., `HS256`). `none` is not permitted. `HS*` algorithms require `OIDC_CLIENT_SECRET`. |
+
+```yaml
+# docker-compose.prod.yml example — OIDC with Authentik
+backend:
+  environment:
+    - AUTH_MODE=oidc_enforced
+    - OIDC_PROVIDER_NAME=Authentik
+    - OIDC_ISSUER_URL=https://auth.example.com/application/o/excalidash/
+    - OIDC_CLIENT_ID=your-client-id
+    - OIDC_CLIENT_SECRET=your-client-secret
+    - OIDC_REDIRECT_URI=https://excalidash.example.com/api/auth/oidc/callback
+    - OIDC_SCOPES=openid profile email
+```
+
+</Accordion>
+
+## Networking
+
+| Variable | Default | Description |
+|---|---|---|
+| `ENFORCE_HTTPS_REDIRECT` | `true` | When `FRONTEND_URL` uses `https://`, the backend redirects plain HTTP requests to HTTPS. Set to `false` when your outer gateway (Nginx, Traefik, Caddy, etc.) already enforces HTTPS and you want to prevent redirect loops — particularly when `X-Forwarded-Proto` is not forwarded to the backend. |
+| `BACKEND_URL` | `backend:8000` | **Frontend container only.** Injected into the Nginx config template to route `/api/` and `/socket.io/` traffic to the backend. Override when the backend service name or host differs from the Docker Compose default (e.g., Kubernetes: `excalidash-backend.default.svc.cluster.local:8000`). |
+
+## Update checks
+
+<Accordion title="Update check variables">
+
+ExcaliDash includes an in-app update notifier that checks GitHub Releases. These variables control outbound network calls for that feature.
+
+| Variable | Default | Description |
+|---|---|---|
+| `UPDATE_CHECK_OUTBOUND` | `true` | Set to `false` to disable all outbound GitHub API requests for version checks. Required for air-gapped or network-restricted deployments. |
+| `UPDATE_CHECK_GITHUB_TOKEN` | *(none)* | Optional GitHub personal access token to increase the API rate limit for update checks. A token scoped to public repositories is sufficient. |
+
+</Accordion>
+
+## Bootstrap
+
+<Accordion title="Bootstrap and onboarding variables">
+
+These variables control the first-admin setup flow that protects fresh installations and post-migration states.
+
+| Variable | Default | Description |
+|---|---|---|
+| `BOOTSTRAP_SETUP_CODE_TTL_MS` | `900000` (15 minutes) | How long the one-time bootstrap setup code remains valid before it is automatically refreshed. |
+| `BOOTSTRAP_SETUP_CODE_MAX_ATTEMPTS` | `10` | Number of failed attempts before the bootstrap code is invalidated and a new one is generated. |
+| `DISABLE_ONBOARDING_GATE` | *(not set)* | Set to `true` to bypass the first-run onboarding guard. Intended for emergency operator access only — not recommended in normal production use. |
+
+To retrieve the current bootstrap code from logs:
+
+```bash
+docker compose -f docker-compose.prod.yml logs backend --tail=200 | grep "BOOTSTRAP SETUP"
+```
+
+</Accordion>
+
+## Performance
+
+| Variable | Default | Description |
+|---|---|---|
+| `DRAWINGS_CACHE_TTL_MS` | `5000` (5 seconds) | How long the drawing list response is cached in-memory on the backend. Increase this value to reduce database load under high list traffic. Set to `0` to disable caching. |

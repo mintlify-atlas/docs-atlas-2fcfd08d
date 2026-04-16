@@ -1,0 +1,95 @@
+---
+title: "Exporting and importing Excalidraw drawings"
+description: "Back up all your drawings as a zip archive of open .excalidraw files, or import a zip to restore or migrate drawings into ExcaliDash."
+---
+
+ExcaliDash stores drawings in the open `.excalidraw` format — a plain JSON structure defined by the Excalidraw project. When you export from ExcaliDash, you get a standard zip archive of `.excalidraw` files that you can open directly in [excalidraw.com](https://excalidraw.com) or the Excalidraw desktop app. There is no proprietary lock-in: your drawings are yours.
+
+## Exporting drawings
+
+The export action downloads all your drawings as a `.zip` archive of individual `.excalidraw` files. Each file in the zip corresponds to one drawing, named after the drawing's title.
+
+<Steps>
+  <Step title="Open the dashboard">
+    Navigate to the dashboard. Make sure you are in **All Drawings** or a specific collection — not **Trash** or **Shared with me**.
+  </Step>
+  <Step title="Click Export">
+    Find the **Export** button in the dashboard toolbar (it may appear as a download icon depending on the view). Click it to start the download.
+  </Step>
+  <Step title="Save the zip file">
+    Your browser downloads a `.zip` archive containing one `.excalidraw` file per drawing. Store this file in a safe place as your backup.
+  </Step>
+</Steps>
+
+<Note>
+  The export includes drawings owned by you. Drawings shared with you by other users are not included.
+</Note>
+
+## Importing drawings
+
+Import lets you upload a `.zip` archive (or individual `.excalidraw` / `.json` files) to add drawings to ExcaliDash. This is useful for restoring a backup or migrating drawings from another ExcaliDash instance or from excalidraw.com.
+
+<Steps>
+  <Step title="Open the dashboard">
+    Navigate to the dashboard or the collection you want to import into.
+  </Step>
+  <Step title="Click Import">
+    Click the **Import** button in the dashboard toolbar, or drag and drop files directly onto the drawing grid.
+  </Step>
+  <Step title="Select files">
+    Choose one or more `.excalidraw` or `.json` files, or a `.zip` archive containing them. The import runs in the background and the dashboard refreshes when complete.
+  </Step>
+</Steps>
+
+<Tip>
+  Drag a `.excalidraw` or `.json` file from your desktop and drop it onto the dashboard to import it without clicking the Import button.
+</Tip>
+
+<Warning>
+  Library files (`.excalidrawlib`) are not supported for import. Only `.excalidraw` and `.json` drawing files are accepted.
+</Warning>
+
+## The .excalidraw format
+
+The `.excalidraw` format is the native open format from the [Excalidraw project](https://github.com/excalidraw/excalidraw). It is a JSON file containing:
+
+- Drawing elements (shapes, text, arrows, images, etc.)
+- App state (background color, grid settings, etc.)
+- Embedded file data (inline images)
+
+Because it is plain JSON, you can inspect or edit it with any text editor. Because it is the Excalidraw native format, you can open exported files directly in:
+
+- [excalidraw.com](https://excalidraw.com) — drag and drop the `.excalidraw` file onto the canvas
+- The Excalidraw VS Code extension
+- Any other tool that supports the Excalidraw format
+
+## Common use cases
+
+<CardGroup cols={2}>
+  <Card title="Regular backups" icon="floppy-disk">
+    Export your drawings periodically and store the zip alongside your database backups for full recovery coverage.
+  </Card>
+  <Card title="Instance migration" icon="arrows-left-right">
+    Export from one ExcaliDash instance and import into another to move your library when changing servers.
+  </Card>
+  <Card title="Sharing raw files" icon="file-arrow-up">
+    Send a `.excalidraw` file to a collaborator who does not have access to your ExcaliDash instance.
+  </Card>
+  <Card title="Opening outside ExcaliDash" icon="arrow-up-right-from-square">
+    Open any exported drawing directly in excalidraw.com or the desktop app without importing it back.
+  </Card>
+</CardGroup>
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Drawings" icon="pencil" href="/features/drawings">
+    Manage and organize all your drawings from the dashboard.
+  </Card>
+  <Card title="Collections" icon="folder" href="/features/collections">
+    Organize drawings into named groups before exporting.
+  </Card>
+  <Card title="Deployment" icon="server" href="/deployment/docker">
+    Back up the SQLite database alongside your .excalidraw exports for full data protection.
+  </Card>
+</CardGroup>

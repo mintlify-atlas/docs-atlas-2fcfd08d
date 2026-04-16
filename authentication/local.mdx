@@ -1,0 +1,138 @@
+---
+title: "Local email/password authentication in ExcaliDash"
+description: "Enable native email/password login, bootstrap the first admin account, configure password reset, and recover admin access using the backend recovery script."
+---
+
+Local authentication lets ExcaliDash manage user accounts directly — no external identity provider required. Users register with an email address and password, and ExcaliDash stores credentials securely in its own database. This mode is ideal for small teams or private instances where a central SSO provider is not available.
+
+## Enabling local auth
+
+Set `AUTH_MODE=local` in your backend environment to activate local email/password login. This is also the default when `AUTH_MODE` is not set.
+
+```yaml
+# docker-compose.yml (backend service)
+backend:
+  environment:
+    - AUTH_MODE=local
+```
+
+<Note>
+`AUTH_MODE=local` disables OIDC provider configuration even if `OIDC_*` variables are present. The backend logs a warning if it detects unused OIDC variables.
+</Note>
+
+## Registration flow
+
+When local auth is enabled and user registration is open, new users can sign up from the ExcaliDash login screen. Registration is controlled by the `registrationEnabled` system config flag, which you can toggle from the admin dashboard.
+
+New accounts start with the default user role. Only the first admin account is created through the bootstrap flow described below.
+
+## Login flow
+
+Users sign in with the email address and password they registered with. Login is protected by a rate limiter (`RATE_LIMIT_MAX_REQUESTS`, default 1000 requests per window). After a successful login, ExcaliDash issues JWT access and refresh tokens as HTTP-only cookies.
+
+OIDC-provisioned accounts (created via `hybrid` mode) do not have a usable local password and cannot log in through the local login endpoint.
+
+## Bootstrap admin setup
+
+On a fresh install with local auth enabled, no active users exist yet. ExcaliDash requires a one-time **bootstrap setup code** before it allows the first admin account to be created. This protects the registration endpoint from being used by an unintended visitor.
+
+<Steps>
+  <Step title="Start your stack">
+    Bring up the containers. The backend generates a setup code on startup and prints it to the logs.
+
+    ```bash
+    docker compose -f docker-compose.prod.yml up -d
+    ```
+  </Step>
+  <Step title="Find the bootstrap code in the logs">
+    Run the following command to extract the current setup code.
+
+    ```bash
+    docker compose -f docker-compose.prod.yml logs backend --tail=200 | grep "BOOTSTRAP SETUP"
+    ```
+
+    The log line looks like:
+
+    ```
+    [BOOTSTRAP SETUP] One-time admin setup code: XXXXXXXX
+    ```
+  </Step>
+  <Step title="Complete the registration form">
+    Open ExcaliDash in your browser. The onboarding UI prompts you for the setup code, followed by your admin email, name, and password. Submit the form to create the admin account.
+  </Step>
+</Steps>
+
+<Warning>
+The setup code is **single-use**. If you enter a wrong or expired code, ExcaliDash reissues a new code and prints it to the backend logs. Check the logs again to get the updated code. The code expires after 15 minutes by default.
+</Warning>
+
+### Bootstrap code configuration
+
+| Variable | Default | Description |
+|---|---|---|
+| `BOOTSTRAP_SETUP_CODE_TTL_MS` | `900000` (15 min) | How long the setup code remains valid in milliseconds. |
+| `BOOTSTRAP_SETUP_CODE_MAX_ATTEMPTS` | `10` | Number of failed attempts before the code is rotated. |
+
+## Password reset
+
+Password reset is **disabled by default**. To enable the self-service password reset flow (which sends a reset link by email), set:
+
+```yaml
+backend:
+  environment:
+    - ENABLE_PASSWORD_RESET=true
+```
+
+<Note>
+Enabling password reset requires outbound email delivery to be configured. Consult your deployment's email settings before enabling this feature.
+</Note>
+
+## Admin recovery script
+
+If you are locked out of your admin account — for example, because you have forgotten the password or the account was deactivated — you can recover access directly on the backend container using the `admin:recover` script.
+
+Run the script from inside the backend service:
+
+```bash
+# Using Docker Compose (production)
+docker compose -f docker-compose.prod.yml exec backend \
+  npm run admin:recover -- --identifier admin@example.com --generate --activate --must-reset
+```
+
+Or from a local checkout of the repository:
+
+```bash
+cd backend
+npm run admin:recover -- --identifier admin@example.com --generate --activate --must-reset
+```
+
+### Recovery flags
+
+| Flag | Description |
+|---|---|
+| `--identifier <email>` | Email address (or username) of the account to recover. |
+| `--password "<new-password>"` | Set an explicit new password. |
+| `--generate` | Generate a secure random password and print it to the terminal. |
+| `--activate` | Activate the account if it is currently deactivated. |
+| `--promote` | Promote the account to the admin role. |
+| `--must-reset` | Force a password reset the next time the user logs in. |
+| `--disable-login-rate-limit` | Temporarily disable login rate limiting for this operation. |
+
+<Tip>
+Use `--generate --must-reset` together to create a temporary password and force the admin to set a new one on first login.
+</Tip>
+
+<Warning>
+The recovery script operates directly on the database. Use it only when you cannot regain access through normal login or the admin dashboard.
+</Warning>
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Authentication overview" icon="shield" href="/authentication/overview">
+    Understand all auth modes and the onboarding gate.
+  </Card>
+  <Card title="Admin management" icon="shield-halved" href="/authentication/admin">
+    Manage users, audit logs, and registration settings from the admin dashboard.
+  </Card>
+</CardGroup>

@@ -1,0 +1,84 @@
+---
+title: "Organizing drawings into collections"
+description: "Use collections to group related drawings together. Create, rename, and delete collections, and move drawings in or drag them in from the dashboard."
+---
+
+Collections are named groups that help you organize drawings in ExcaliDash. Think of them like folders — each collection appears in the sidebar, and clicking one filters the dashboard to show only the drawings inside it. Collections are personal to your account; they are not a sharing mechanism (see [Sharing](/features/sharing) for that).
+
+## Creating a collection
+
+Click the **+** button next to "Collections" in the left sidebar and type a name. Press **Enter** or click the confirm button. The new collection appears in the sidebar immediately and you can start adding drawings to it.
+
+Collection names can be up to 100 characters.
+
+## Renaming a collection
+
+Hover over a collection in the sidebar and click the edit (pencil) icon that appears. Type the new name and press **Enter** to save, or press **Escape** to cancel.
+
+<Note>
+  The **Trash** collection cannot be renamed. It is managed automatically by ExcaliDash.
+</Note>
+
+## Deleting a collection
+
+Hover over a collection in the sidebar and click the delete (trash) icon. Confirm the action in the dialog.
+
+When you delete a collection, its drawings are **not** deleted — they move to the **Unorganized** view so you can find and re-organize them. Only the collection itself is removed.
+
+<Warning>
+  The **Trash** collection cannot be deleted directly. To remove drawings from Trash, permanently delete them instead.
+</Warning>
+
+## Viewing drawings in a collection
+
+Click a collection name in the sidebar to switch the dashboard to that collection. The view title updates to the collection name, and only drawings in that collection are shown. Search, sort, and pagination all work the same way inside a collection.
+
+## Moving drawings into a collection
+
+There are three ways to move a drawing into a collection:
+
+<Steps>
+  <Step title="Drawing card context menu">
+    Open the context menu on a drawing card (three-dot menu or right-click) and select **Move to collection**, then pick the destination.
+  </Step>
+  <Step title="Bulk move">
+    Select one or more drawings using multi-select, then click the move icon in the toolbar. Choose the destination collection — or choose **Unorganized** to remove them from any collection.
+  </Step>
+  <Step title="Drag and drop">
+    Drag a drawing card and drop it onto a collection name in the left sidebar. If you have multiple drawings selected, all selected drawings move together.
+  </Step>
+</Steps>
+
+## Drag and drop from the dashboard
+
+You can drag one drawing — or a multi-selection — directly onto a collection in the sidebar. A badge on the drag preview shows how many drawings are being moved.
+
+Drag and drop also works with `.excalidraw` and `.json` files from your filesystem: drag files from your desktop onto the dashboard grid to import them directly into the active view.
+
+<Note>
+  Library files (`.excalidrawlib`) are not supported for drag-and-drop import. Import `.excalidraw` or `.json` drawing files instead.
+</Note>
+
+## The Unorganized view
+
+Drawings that are not in any collection appear in the **Unorganized** view. Access it from the sidebar by clicking **Unorganized**. From there you can search, sort, and move drawings into collections as you organize your library.
+
+## Collections and sharing
+
+Collections are an organization layer for the drawing owner. When you share a drawing with another user or via a link, the recipient sees the drawing itself — not the collection it belongs to. Collection IDs are owner-scoped and are not visible to recipients.
+
+To learn more about sharing individual drawings, see [Sharing](/features/sharing).
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Drawings" icon="pencil" href="/features/drawings">
+    Create, search, rename, and manage your drawings.
+  </Card>
+  <Card title="Sharing" icon="share-nodes" href="/features/sharing">
+    Share drawings with specific users or via external links.
+  </Card>
+  <Card title="Import & Export" icon="file-export" href="/features/import-export">
+    Back up or migrate your drawings as .excalidraw files.
+  </Card>
+</CardGroup>

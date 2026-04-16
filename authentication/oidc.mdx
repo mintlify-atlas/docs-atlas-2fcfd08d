@@ -1,0 +1,168 @@
+---
+title: "OIDC single sign-on setup for ExcaliDash"
+description: "Connect ExcaliDash to any OIDC-compliant identity provider — Authentik, Keycloak, or others — with hybrid or enforced SSO mode and JIT user provisioning."
+---
+
+ExcaliDash supports OpenID Connect (OIDC) for single sign-on, letting you delegate authentication to an existing identity provider such as Authentik, Keycloak, or any other standards-compliant OIDC provider. You can run OIDC alongside local accounts (`hybrid`) or require SSO exclusively (`oidc_enforced`).
+
+## Auth mode options
+
+<Tabs>
+  <Tab title="hybrid">
+    Users see both the local login form and a "Sign in with &lt;provider&gt;" button. Existing local accounts continue to work. This is a good migration path when moving from local-only auth.
+
+    ```yaml
+    backend:
+      environment:
+        - AUTH_MODE=hybrid
+    ```
+  </Tab>
+  <Tab title="oidc_enforced">
+    All authentication goes through the OIDC provider. The local `/auth/register` and `/auth/login` endpoints return `403 Forbidden`. No local password flows are available.
+
+    ```yaml
+    backend:
+      environment:
+        - AUTH_MODE=oidc_enforced
+    ```
+  </Tab>
+</Tabs>
+
+## Required environment variables
+
+Set these variables on your backend service for either OIDC mode. `OIDC_CLIENT_ID`, `OIDC_ISSUER_URL`, and `OIDC_REDIRECT_URI` are required when `AUTH_MODE` is `hybrid` or `oidc_enforced`. The backend will refuse to start if they are missing.
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `OIDC_ISSUER_URL` | Yes | — | The OIDC discovery base URL for your provider (e.g. `https://auth.example.com/application/o/excalidash/`). |
+| `OIDC_CLIENT_ID` | Yes | — | The client ID registered with your identity provider. |
+| `OIDC_REDIRECT_URI` | Yes | — | The OAuth2 callback URL. Must be HTTPS in production. Format: `https://excalidash.example.com/api/auth/oidc/callback` |
+| `OIDC_CLIENT_SECRET` | No | — | Required for confidential clients. Omit for public clients. Also required when using `HS*` signing algorithms. |
+| `OIDC_PROVIDER_NAME` | No | `OIDC` | Display name shown on the login button (e.g. `Authentik`, `Keycloak`). |
+| `OIDC_SCOPES` | No | `openid profile email` | Space-separated OIDC scopes to request. |
+
+### Additional OIDC options
+
+| Variable | Default | Description |
+|---|---|---|
+| `OIDC_JIT_PROVISIONING` | `true` | Automatically create an ExcaliDash account on the user's first OIDC login. |
+| `OIDC_FIRST_USER_ADMIN` | `true` | Grant admin role to the first user who signs in via OIDC. |
+| `OIDC_REQUIRE_EMAIL_VERIFIED` | `true` | Reject logins where the `email_verified` claim is false. |
+| `OIDC_EMAIL_CLAIM` | `email` | JWT claim to use as the user's email address. |
+| `OIDC_EMAIL_VERIFIED_CLAIM` | `email_verified` | JWT claim to check for email verification status. |
+| `OIDC_ID_TOKEN_SIGNED_RESPONSE_ALG` | `RS256` (provider default) | Override the expected ID token signing algorithm. See the note below. |
+
+<Note>
+ExcaliDash defaults to `RS256` for ID token verification. If your identity provider client is **explicitly configured** to sign ID tokens with a different algorithm (for example `HS256`), set `OIDC_ID_TOKEN_SIGNED_RESPONSE_ALG` to match that exact client setting. `none` is not allowed. `HS*` algorithms require `OIDC_CLIENT_SECRET` to be set.
+</Note>
+
+## Redirect URI format
+
+The redirect URI must be registered with your identity provider and must match exactly what you set in `OIDC_REDIRECT_URI`. Use the following pattern:
+
+```
+https://excalidash.example.com/api/auth/oidc/callback
+```
+
+<Warning>
+`OIDC_REDIRECT_URI` must use `https://` in production. The backend will refuse to start if the value uses plain HTTP when `NODE_ENV=production`.
+</Warning>
+
+## JIT provisioning
+
+When `OIDC_JIT_PROVISIONING=true` (the default), ExcaliDash automatically creates an account for any user who successfully authenticates via OIDC for the first time. No manual user creation is needed. Disable JIT provisioning if you want to pre-create accounts and restrict access to explicitly invited users only.
+
+## First user admin
+
+When `OIDC_FIRST_USER_ADMIN=true` (the default), the first user to complete an OIDC login is automatically granted the admin role. This is the primary way to establish an admin account in `oidc_enforced` mode, where the local bootstrap registration flow is not available.
+
+## Example: Authentik configuration
+
+<CodeGroup>
+
+```yaml docker-compose.yml (oidc_enforced)
+backend:
+  environment:
+    - AUTH_MODE=oidc_enforced
+    - OIDC_PROVIDER_NAME=Authentik
+    - OIDC_ISSUER_URL=https://auth.example.com/application/o/excalidash/
+    - OIDC_CLIENT_ID=your-client-id
+    # Required for confidential clients:
+    # - OIDC_CLIENT_SECRET=your-client-secret
+    - OIDC_REDIRECT_URI=https://excalidash.example.com/api/auth/oidc/callback
+    - OIDC_SCOPES=openid profile email
+    # Optional: override ID token signing alg if your client uses HS256
+    # - OIDC_ID_TOKEN_SIGNED_RESPONSE_ALG=HS256
+```
+
+```yaml docker-compose.yml (hybrid)
+backend:
+  environment:
+    - AUTH_MODE=hybrid
+    - OIDC_PROVIDER_NAME=Authentik
+    - OIDC_ISSUER_URL=https://auth.example.com/application/o/excalidash/
+    - OIDC_CLIENT_ID=your-client-id
+    - OIDC_REDIRECT_URI=https://excalidash.example.com/api/auth/oidc/callback
+    - OIDC_SCOPES=openid profile email
+```
+
+</CodeGroup>
+
+<Tip>
+Make sure `FRONTEND_URL` is set to your public ExcaliDash URL and `TRUST_PROXY` is configured correctly for your reverse proxy setup. OIDC callbacks and WebSocket connections both depend on correct origin and forwarded-header handling. See the [reverse proxy guide](/deployment/reverse-proxy) for details.
+</Tip>
+
+## Local OIDC testing with Keycloak
+
+The ExcaliDash repository includes a Keycloak container and realm seed for local OIDC testing, so you can verify your OIDC configuration before connecting a production identity provider.
+
+<Steps>
+  <Step title="Start the Keycloak stack">
+    From the repository root, export an admin password and start the OIDC compose file.
+
+    ```bash
+    export KEYCLOAK_ADMIN_PASSWORD='your-strong-password'
+    docker compose -f docker-compose.oidc.yml up -d
+    ```
+  </Step>
+  <Step title="Create a test user in Keycloak">
+    Open the Keycloak admin UI at `http://localhost:8080/admin`. Switch to the `excalidash` realm, then create a user and set a password under **Credentials**.
+  </Step>
+  <Step title="Configure the ExcaliDash backend">
+    Copy the example OIDC environment file and adjust `OIDC_REDIRECT_URI` to match your frontend URL.
+
+    ```bash
+    cd backend
+    cp .env.oidc.example .env
+    # Edit OIDC_REDIRECT_URI as needed, e.g.:
+    # http://localhost:6767/api/auth/oidc/callback
+    ```
+  </Step>
+  <Step title="Start ExcaliDash and test login">
+    Start the backend and frontend, then navigate to the ExcaliDash login screen and click the OIDC login button.
+  </Step>
+  <Step title="Tear down Keycloak">
+    When you are done testing, stop and remove the Keycloak containers.
+
+    ```bash
+    docker compose -f docker-compose.oidc.yml down
+    ```
+  </Step>
+</Steps>
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Authentication overview" icon="shield" href="/authentication/overview">
+    Understand all auth modes and the bootstrap flow.
+  </Card>
+  <Card title="Admin management" icon="shield-halved" href="/authentication/admin">
+    Manage OIDC-provisioned users and audit events.
+  </Card>
+  <Card title="Reverse proxy setup" icon="server" href="/deployment/reverse-proxy">
+    Configure FRONTEND_URL and TRUST_PROXY for correct auth and WebSocket routing.
+  </Card>
+  <Card title="Environment variables" icon="sliders" href="/configuration/environment-variables">
+    Full reference for all backend environment variables.
+  </Card>
+</CardGroup>

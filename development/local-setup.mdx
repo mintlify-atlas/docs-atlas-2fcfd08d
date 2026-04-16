@@ -1,0 +1,187 @@
+---
+title: "Setting up ExcaliDash for local development"
+description: "Run ExcaliDash locally from source. Covers prerequisites, backend and frontend setup, Makefile commands, E2E testing, and auth simulation scripts."
+---
+
+The fastest way to get a working local environment is `make install` followed by `make dev`. This starts both the backend and frontend in a split tmux session with authentication disabled, so you can reproduce editor bugs and iterate without going through login or onboarding flows. Read through the full setup below if you need more control over each service or want to test auth and OIDC locally.
+
+## Prerequisites
+
+Before cloning, make sure you have the following installed:
+
+- **Node.js 20+** and **npm** — required for both backend and frontend
+- **SQLite** — the default database; no separate server needed on most systems
+- **tmux** — required for `make dev` split-session mode
+- **Docker + Docker Compose v2** — optional, only needed for E2E tests run via Docker or for local integration testing with Keycloak
+
+## Full setup
+
+<Steps>
+  <Step title="Clone the repository">
+    Clone via SSH (recommended) or HTTPS:
+
+    <CodeGroup>
+
+    ```bash SSH
+    git clone git@github.com:ZimengXiong/ExcaliDash.git
+    cd ExcaliDash
+    ```
+
+    ```bash HTTPS
+    git clone https://github.com/ZimengXiong/ExcaliDash.git
+    cd ExcaliDash
+    ```
+
+    </CodeGroup>
+  </Step>
+
+  <Step title="Install all dependencies">
+    Run `make install` to install dependencies for the backend, frontend, and e2e packages in one step:
+
+    ```bash
+    make install
+    ```
+
+    Alternatively, install each package individually:
+
+    ```bash
+    cd backend && npm install
+    cd ../frontend && npm install
+    cd ../e2e && npm install
+    ```
+  </Step>
+
+  <Step title="Set up the backend">
+    Copy the example environment file, generate the Prisma client, push the database schema, then start the dev server:
+
+    ```bash
+    cd backend
+    cp .env.example .env
+    npx prisma generate
+    npx prisma db push
+    npm run dev
+    ```
+
+    The backend starts on port `8000` by default (or `8001` when launched via `make dev`).
+  </Step>
+
+  <Step title="Set up the frontend">
+    In a separate terminal, copy the example environment file and start the Vite dev server:
+
+    ```bash
+    cd frontend
+    cp .env.example .env
+    npm run dev
+    ```
+
+    The frontend dev server listens on port `6767`.
+  </Step>
+
+  <Step title="Or: start everything with make dev">
+    Instead of running the backend and frontend in separate terminals, use `make dev` to start both in a single tmux split session:
+
+    ```bash
+    make dev
+    ```
+
+    This launches the backend in single-user mode (`EXCALIDASH_DEV_SINGLE_USER=true`) with no auth required. Stop everything with:
+
+    ```bash
+    make dev-stop
+    ```
+  </Step>
+
+  <Step title="Access the app">
+    Open your browser and navigate to:
+
+    ```
+    http://localhost:6767
+    ```
+
+    The frontend proxies `/api/` and `/socket.io/` requests to the backend automatically in dev mode via Vite's proxy configuration.
+  </Step>
+</Steps>
+
+## Dev modes
+
+ExcaliDash provides two `make` targets for local development, depending on what you need to test.
+
+| Command | Behavior |
+|---|---|
+| `make dev` | Starts the backend with `EXCALIDASH_DEV_SINGLE_USER=true` and auth disabled. Use this for editor bug reproduction and UI work. |
+| `make dev-auth` | Starts both services using the auth settings in `backend/.env`. Use this when you need to test local auth, OIDC flows, or onboarding. |
+
+You can also start only one side of the stack:
+
+```bash
+make dev-backend    # backend only
+make dev-frontend   # frontend only
+```
+
+## Makefile command reference
+
+The `Makefile` at the repo root orchestrates all common development tasks.
+
+| Command | Description |
+|---|---|
+| `make install` | Install all dependencies (frontend, backend, e2e) |
+| `make dev` | Start backend + frontend in a tmux split (single-user local mode) |
+| `make dev-auth` | Start backend + frontend in tmux using `backend/.env` auth settings |
+| `make dev-stop` | Stop all running ExcaliDash tmux dev sessions |
+| `make dev-backend` | Start backend dev server only |
+| `make dev-frontend` | Start frontend dev server only |
+| `make build` | Build frontend and backend for production |
+| `make lint` | Run ESLint for frontend; backend linting is not configured |
+| `make test` | Run all unit tests (frontend + backend via Vitest) |
+| `make test-frontend` | Run frontend unit tests only |
+| `make test-backend` | Run backend unit tests only |
+| `make test-all` | Run all tests including E2E |
+| `make test-e2e` | Run E2E tests via Playwright (starts servers automatically) |
+| `make test-e2e-docker` | Run E2E tests in Docker containers |
+| `make clean` | Remove frontend build artifacts and Vite cache |
+
+## E2E testing with Playwright
+
+End-to-end tests live in the `e2e/` directory and use [Playwright](https://playwright.dev/) with Chromium.
+
+```bash
+cd e2e
+npm install
+npx playwright install chromium
+npm test
+```
+
+If your backend and frontend are already running, skip the automatic server startup:
+
+```bash
+NO_SERVER=true npm test
+```
+
+To run the full E2E suite in Docker containers:
+
+```bash
+make test-e2e-docker
+```
+
+<Note>
+E2E tests spin up their own backend and frontend by default. Set `BASE_URL` and `API_URL` environment variables to point to an existing stack when using `NO_SERVER=true`.
+</Note>
+
+## Simulate auth onboarding
+
+When developing auth-related features, you can reset the local database to a specific onboarding state without manually wiping data. Run these scripts from the `backend/` directory:
+
+```bash
+# Preview what would change — no data modifications
+npm run dev:simulate-auth-onboarding:dry-run
+
+# Simulate a fresh install (removes drawings, collections, libraries, and non-bootstrap users)
+npm run dev:simulate-auth-onboarding:fresh
+
+# Simulate a migration state (ensures legacy data exists)
+npm run dev:simulate-auth-onboarding:migration
+```
+
+<Tip>
+After running a simulation while the backend is already running, wait about 5 seconds (auth mode cache TTL) or restart the backend before refreshing the UI to pick up the new state.
+</Tip>

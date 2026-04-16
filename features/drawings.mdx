@@ -1,0 +1,123 @@
+---
+title: "Managing drawings in ExcaliDash"
+description: "Create, search, sort, rename, and organize your Excalidraw drawings from the ExcaliDash dashboard, with auto-save and trash support."
+---
+
+Every drawing in ExcaliDash is a persisted Excalidraw file stored in your instance's database. When you open the dashboard you see all your drawings as thumbnail cards, and any changes you make in the editor are saved automatically — nothing is lost when you close the tab.
+
+## Creating a drawing
+
+Click **New Drawing** in the top-right corner of the dashboard. ExcaliDash creates a new drawing named "Untitled Drawing" and opens it immediately in the editor. You can rename it at any time.
+
+If you are browsing a collection, the new drawing is created inside that collection automatically.
+
+<Note>
+  You cannot create drawings while viewing **Trash** or **Shared with me**.
+</Note>
+
+## Renaming a drawing
+
+You can rename a drawing from two places:
+
+- **Dashboard** — hover the drawing card and click the edit icon, or double-click the name.
+- **Editor** — click the drawing name in the editor header. Press **Enter** or click away to save.
+
+## Auto-save
+
+The editor saves your work automatically while you draw. Changes are flushed to the server roughly one second after you stop making edits. Thumbnail previews are regenerated periodically in the background.
+
+You can also save manually at any time with **Ctrl+S** (or **Cmd+S** on macOS). A toast notification confirms the save.
+
+<Tip>
+  If you see a "Drawing changed in another tab" error, refresh the editor to load the latest version.
+</Tip>
+
+## Searching drawings
+
+Use the search bar at the top of the dashboard to filter drawings by name. Results update as you type with a short debounce. Press **Ctrl+K** (or **Cmd+K**) to focus the search bar from anywhere on the dashboard.
+
+Search applies to the currently active view — all drawings, a specific collection, Unorganized, or Trash.
+
+## Sorting drawings
+
+Click the sort field selector to change how drawings are ordered. Three sort fields are available:
+
+| Field | Default direction |
+|---|---|
+| Name | A → Z |
+| Date created | Newest first |
+| Date modified | Newest first |
+
+Click the direction button (↑ / ↓) next to the field selector to toggle between ascending and descending order.
+
+## Pagination
+
+The dashboard loads 24 drawings per page. Scroll to the bottom to load the next page automatically. The loader spins while more drawings are being fetched.
+
+## Thumbnails
+
+ExcaliDash generates an SVG thumbnail for each drawing after you save. Thumbnails appear on drawing cards in the dashboard so you can visually identify drawings at a glance. If a drawing has no content yet, the card shows a placeholder icon instead.
+
+## Multi-select and bulk operations
+
+You can select multiple drawings to act on them together.
+
+**How to select:**
+
+- Click a card while holding **Ctrl** (or **Cmd**) to add it to the selection.
+- Click while holding **Shift** to select a range.
+- Click and drag on the background to draw a selection rectangle.
+- Press **Ctrl+A** (or **Cmd+A**) to select all drawings on the current page.
+- Click the checkbox icon in the toolbar to toggle select-all.
+- Press **Escape** to clear the selection.
+
+**Bulk actions available when drawings are selected:**
+
+<CardGroup cols={2}>
+  <Card title="Move to collection" icon="folder-arrow-up">
+    Click the move icon in the toolbar and choose a destination collection or Unorganized.
+  </Card>
+  <Card title="Duplicate" icon="copy">
+    Click the duplicate icon to copy all selected drawings in place.
+  </Card>
+  <Card title="Move to trash" icon="trash">
+    Click the trash icon to move selected drawings to the Trash. You can restore them later.
+  </Card>
+  <Card title="Delete permanently" icon="trash-xmark">
+    When in Trash view, the trash icon permanently deletes the selected drawings instead.
+  </Card>
+</CardGroup>
+
+## Trash
+
+Deleting a drawing from the main dashboard moves it to **Trash** rather than removing it immediately. You can access Trash from the sidebar.
+
+From Trash you can:
+
+- **Permanently delete** a drawing — click the delete icon on a card, or select drawings in bulk and click the trash icon.
+- There is no automatic expiry; drawings stay in Trash until you permanently delete them.
+
+<Warning>
+  Permanent deletion cannot be undone. Make sure you have exported any drawings you want to keep before deleting them permanently.
+</Warning>
+
+## Duplicating a drawing
+
+To duplicate a single drawing, open the context menu on its card and select **Duplicate**. The copy is created in the same collection (or Trash, if the original is in Trash) with the name suffixed `(Copy)`.
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Collections" icon="folder" href="/features/collections">
+    Organize drawings into named groups.
+  </Card>
+  <Card title="Import & Export" icon="file-export" href="/features/import-export">
+    Back up or migrate drawings in the open .excalidraw format.
+  </Card>
+  <Card title="Sharing" icon="share-nodes" href="/features/sharing">
+    Share drawings with other users or via external links.
+  </Card>
+  <Card title="Collaboration" icon="users" href="/features/collaboration">
+    Work on a drawing in real time with others.
+  </Card>
+</CardGroup>

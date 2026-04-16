@@ -1,0 +1,116 @@
+---
+title: "Sharing drawings with other users and external links"
+description: "Share drawings inside your ExcaliDash instance with user-level permissions, or generate expiring external links with optional passphrase protection."
+---
+
+ExcaliDash provides two distinct sharing modes for drawings: **internal sharing** for granting access to other users on the same instance, and **external link sharing** for generating a URL anyone can open. Both modes support view-only and edit permissions, and can be managed from the editor's sharing panel.
+
+To open the sharing panel, open a drawing in the editor and click the **Share** button in the header.
+
+## Internal sharing
+
+Internal sharing lets you grant a specific user on your ExcaliDash instance access to one of your drawings. The recipient sees the drawing in their **Shared with me** view in the dashboard.
+
+<Steps>
+  <Step title="Open the sharing panel">
+    Open the drawing in the editor and click **Share** in the header.
+  </Step>
+  <Step title="Search for a user">
+    Type the recipient's name, username, or email address. Results appear after you have typed at least three characters. Select the user from the suggestions.
+  </Step>
+  <Step title="Choose a permission level">
+    Select **View** or **Edit** from the permission dropdown before adding the user.
+  </Step>
+  <Step title="Save">
+    Click **Share** to grant access. The permission row appears in the sharing panel, and the recipient can now see the drawing in their **Shared with me** list.
+  </Step>
+</Steps>
+
+### Permission levels for internal sharing
+
+| Permission | What the recipient can do |
+|---|---|
+| **View** | Open and read the drawing; cannot save changes |
+| **Edit** | Open, draw, and save changes to the drawing |
+
+You can update a user's permission or remove their access at any time from the sharing panel. Removing a user's permission immediately revokes their access.
+
+<Note>
+  Only the drawing owner can manage sharing. Recipients cannot re-share a drawing.
+</Note>
+
+## External link sharing
+
+External link sharing generates a URL that anyone with the link can use to access a drawing — no ExcaliDash account required. Link access is based on the drawing ID and an active link policy, so the same URL grants access as long as the link is not revoked or expired.
+
+<Steps>
+  <Step title="Open the sharing panel">
+    Open the drawing in the editor and click **Share** in the header.
+  </Step>
+  <Step title="Choose a permission">
+    Select **View** or **Edit** from the link permission dropdown.
+  </Step>
+  <Step title="Set an expiry (optional)">
+    Leave the expiry blank to use the default TTL, or enter a custom expiry date. The maximum allowed expiry is 90 days from now.
+  </Step>
+  <Step title="Generate the link">
+    Click **Create link**. The shareable URL appears and is ready to copy.
+  </Step>
+</Steps>
+
+### Default expiry by permission type
+
+<Tabs>
+  <Tab title="View links">
+    View links default to **30 days** when no expiry is specified. You can also create a truly non-expiring view link by explicitly leaving the expiry empty and confirming the "no expiry" option.
+
+    The default TTL is configurable via the `LINK_SHARE_VIEW_DEFAULT_TTL_MS` environment variable.
+  </Tab>
+  <Tab title="Edit links">
+    Edit links always have an expiry. The default is **7 days** when no expiry is specified. If you need longer access, set a custom expiry up to the maximum of 90 days.
+
+    The default TTL is configurable via the `LINK_SHARE_EDIT_DEFAULT_TTL_MS` environment variable.
+  </Tab>
+</Tabs>
+
+The maximum TTL for any link type is 90 days, configurable via `LINK_SHARE_MAX_TTL_MS`.
+
+### Passphrase protection
+
+When creating a link, you can set an optional passphrase. Recipients must enter the correct passphrase before they can access the drawing. Passphrases are stored as secure hashes — they are never stored in plain text.
+
+If a recipient enters an incorrect passphrase too many times, their access is temporarily locked. The lock clears after a reset.
+
+### Revoking a link
+
+Open the sharing panel and click **Revoke** next to an active link share. The link stops working immediately. You can create a new link for the same drawing if needed.
+
+### Link sharing behavior
+
+- Each drawing has at most one active external link policy at a time. Creating a new link automatically revokes any previous active link for that drawing.
+- Link access is determined by the drawing ID — the URL itself does not contain a secret token. Revoking the link policy removes access for anyone who held the URL.
+- If a link-shared drawing is opened by a signed-in user who has explicit permissions, their individual permission level applies instead.
+
+## Configuration
+
+The following environment variables control link share TTL defaults on the backend:
+
+| Variable | Default | Description |
+|---|---|---|
+| `LINK_SHARE_VIEW_DEFAULT_TTL_MS` | `2592000000` (30 days) | Default expiry for view links when no expiry is specified |
+| `LINK_SHARE_EDIT_DEFAULT_TTL_MS` | `604800000` (7 days) | Default expiry for edit links when no expiry is specified |
+| `LINK_SHARE_MAX_TTL_MS` | `7776000000` (90 days) | Maximum allowed expiry for any link |
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Collaboration" icon="users" href="/features/collaboration">
+    Work on a drawing in real time with presence indicators.
+  </Card>
+  <Card title="Drawings" icon="pencil" href="/features/drawings">
+    Manage, rename, and organize your drawings.
+  </Card>
+  <Card title="Authentication overview" icon="lock" href="/authentication/overview">
+    Set up user accounts and access controls.
+  </Card>
+</CardGroup>

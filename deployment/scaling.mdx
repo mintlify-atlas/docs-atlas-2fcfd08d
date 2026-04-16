@@ -1,0 +1,88 @@
+---
+title: 'Scaling and High Availability for ExcaliDash'
+description: 'Understand current single-instance limitations around SQLite and in-memory collaboration state, and the recommended deployment pattern for production stability.'
+---
+
+ExcaliDash is designed for self-hosted single-instance deployments. Before planning a scaled or highly available setup, it is important to understand where the current architecture imposes hard constraints. Both the storage layer and the real-time collaboration system are built around a single backend process, and running multiple replicas today will produce incorrect behavior rather than additional capacity.
+
+## Current limitations
+
+| Area | Limitation |
+|---|---|
+| **Database** | The backend uses a local **SQLite file** (`DATABASE_URL=file:/app/prisma/dev.db`). Running multiple backend replicas either creates split-brain state — each replica writes to its own separate DB file — or requires sharing a single SQLite file across hosts, which is not a reliable or supported deployment pattern. |
+| **Collaboration state** | Real-time presence is tracked **in-memory** inside the backend process using Socket.IO. If you run more than one backend replica, each process maintains its own isolated view of who is in a drawing session. Users connected to different replicas will not see each other, fragmenting the collaboration experience. |
+
+<Warning>
+  Multi-backend / HA deployment is **not supported** in the current release. Running more than one backend replica will cause data inconsistency and broken collaboration. There is no shared Socket.IO adapter or external database driver available yet.
+</Warning>
+
+## Why these constraints exist
+
+### SQLite
+
+SQLite is a file-based database embedded directly in the backend process. It does not have a network protocol, so multiple processes cannot safely connect to the same database unless they share a filesystem — and even then, concurrent write access from separate hosts is unreliable. Migrating to a networked database engine (such as PostgreSQL) would remove this constraint, but is not yet available in ExcaliDash.
+
+### In-memory Socket.IO presence
+
+Excalidraw collaboration — showing other users' cursors and live drawing strokes — relies on Socket.IO rooms that are tracked in the backend process's memory. Without a shared adapter (such as Redis pub/sub), each backend process is an island. Load-balancing WebSocket connections across multiple processes would silently break the multi-user experience.
+
+## Recommended deployment pattern
+
+Given these constraints, the stable production topology is one replica of each service:
+
+| Component | Guidance |
+|---|---|
+| **Backend** | **1 replica**, with a persistent named volume mounted at `/app/prisma`. Schedule regular backups of this volume — it contains the SQLite database and any auto-generated secrets. |
+| **Frontend** | **1 replica** is simplest and recommended. The frontend container is stateless (it only serves static files and proxies API calls), so it could technically be scaled horizontally, but there is no practical benefit when the backend is a single instance. |
+
+### Example: minimal stable Compose setup
+
+```yaml docker-compose.prod.yml
+services:
+  backend:
+    image: zimengxiong/excalidash-backend:0.4.28
+    volumes:
+      - backend-data:/app/prisma   # persistent SQLite DB + secrets
+    restart: unless-stopped
+
+  frontend:
+    image: zimengxiong/excalidash-frontend:0.4.28
+    ports:
+      - "6767:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  backend-data:
+```
+
+<Tip>
+  Pin both images to a specific version tag instead of `:latest`. This makes upgrades and rollbacks predictable and reproducible. See [Docker deployment](/deployment/docker) for the full hardening checklist.
+</Tip>
+
+## Backup strategy
+
+Because all persistent state lives in a single Docker named volume, backups are straightforward:
+
+```bash
+# Stop the backend cleanly before copying (avoids mid-write corruption)
+docker compose -f docker-compose.prod.yml stop backend
+
+# Copy the volume contents to a local archive
+docker run --rm \
+  -v excalidash_backend-data:/data \
+  -v $(pwd):/backup \
+  alpine tar czf /backup/excalidash-backup-$(date +%Y%m%d).tar.gz -C /data .
+
+# Restart the backend
+docker compose -f docker-compose.prod.yml start backend
+```
+
+<Note>
+  The volume name is prefixed with your Compose project name (usually the directory name). Verify the exact name with `docker volume ls` if the command above does not find the volume.
+</Note>
+
+## Roadmap note
+
+High-availability and multi-backend support would require at minimum a networked database backend and a Socket.IO adapter for shared presence state. Neither is available in ExcaliDash today. If HA is a hard requirement for your deployment, watch the [GitHub releases](https://github.com/ZimengXiong/ExcaliDash/releases) page for updates.

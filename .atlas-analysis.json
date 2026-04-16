@@ -1,0 +1,104 @@
+{
+  "projectType": "saas",
+  "projectName": "ExcaliDash",
+  "projectDescription": "A self-hosted dashboard and organizer for Excalidraw drawings with persistent storage, real-time collaboration, collections, and optional multi-user authentication.",
+  "theme": "almond",
+  "primaryColor": "#94cb04",
+  "lightColor": "#545454",
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "upgrading"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "deployment/docker",
+              "deployment/reverse-proxy",
+              "deployment/scaling"
+            ]
+          },
+          {
+            "group": "Authentication",
+            "pages": [
+              "authentication/overview",
+              "authentication/local",
+              "authentication/oidc",
+              "authentication/admin"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/environment-variables",
+              "configuration/feature-flags"
+            ]
+          },
+          {
+            "group": "Features",
+            "pages": [
+              "features/drawings",
+              "features/collections",
+              "features/sharing",
+              "features/collaboration",
+              "features/import-export"
+            ]
+          },
+          {
+            "group": "Development",
+            "pages": [
+              "development/local-setup",
+              "development/architecture",
+              "development/contributing"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Persistent drawing storage backed by SQLite",
+    "Real-time collaboration via WebSocket (Socket.IO)",
+    "Collections and drag-and-drop drawing organization",
+    "Full-text drawing search",
+    "Scoped internal and external link sharing with passphrase protection",
+    "Export/import in plain .excalidraw format for backup",
+    "Multi-user authentication: local email/password and OIDC (hybrid or enforced)",
+    "Admin dashboard with user management and audit logging",
+    "Docker-based self-hosted deployment with Docker Hub images",
+    "In-app update notifier against GitHub Releases"
+  ],
+  "publicApiSurface": [
+    "GET /api/health",
+    "GET /api/auth/status",
+    "POST /api/auth/login",
+    "POST /api/auth/register",
+    "POST /api/auth/logout",
+    "GET /api/auth/oidc/callback",
+    "GET /api/csrf-token",
+    "GET /api/dashboard/drawings",
+    "POST /api/dashboard/drawings",
+    "GET /api/dashboard/drawings/:id",
+    "PUT /api/dashboard/drawings/:id",
+    "DELETE /api/dashboard/drawings/:id",
+    "GET /api/dashboard/collections",
+    "POST /api/dashboard/collections",
+    "PUT /api/dashboard/collections/:id",
+    "DELETE /api/dashboard/collections/:id",
+    "GET /api/dashboard/library",
+    "PUT /api/dashboard/library",
+    "POST /api/import-export/export",
+    "POST /api/import-export/import",
+    "GET /api/system/update",
+    "WebSocket: /socket.io/ (real-time collaboration)"
+  ]
+}

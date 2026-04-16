@@ -1,0 +1,123 @@
+---
+title: "Upgrading ExcaliDash to the latest version"
+description: "Pull updated Docker images and recreate containers to upgrade ExcaliDash without losing your drawings or configuration."
+---
+
+ExcaliDash ships updates as new Docker images on Docker Hub. Upgrading means pulling the new images and recreating the containers — your drawings are stored in a named Docker volume and are not touched by the upgrade process. Read this page before running any upgrade commands.
+
+## In-app update notifier
+
+ExcaliDash includes a built-in update notifier that checks GitHub Releases and surfaces new versions in the UI. If your deployment must not make outbound network calls, you can disable this check entirely:
+
+```bash
+UPDATE_CHECK_OUTBOUND=false
+```
+
+Add this variable to the `backend` service environment in your Compose file. The UI notifier will no longer appear, and no requests are made to GitHub.
+
+## Upgrade steps (Docker Hub)
+
+The recommended upgrade path pulls new images and recreates containers with zero data loss.
+
+<Steps>
+  <Step title="Pull the latest images">
+    Download updated backend and frontend images from Docker Hub.
+
+    ```bash
+    docker compose -f docker-compose.prod.yml pull
+    ```
+  </Step>
+
+  <Step title="Recreate the containers">
+    Restart with the newly pulled images. This command recreates only the containers whose images changed.
+
+    ```bash
+    docker compose -f docker-compose.prod.yml up -d
+    ```
+  </Step>
+</Steps>
+
+You can also combine both commands into a single line:
+
+```bash
+docker compose -f docker-compose.prod.yml pull && \
+  docker compose -f docker-compose.prod.yml up -d
+```
+
+### Stop-start upgrade (more downtime)
+
+If you prefer a clean stop before pulling, use `down` first:
+
+```bash
+docker compose -f docker-compose.prod.yml down && \
+  docker compose -f docker-compose.prod.yml pull && \
+  docker compose -f docker-compose.prod.yml up -d
+```
+
+<Warning>
+  **Never use `docker compose down -v`** unless you intend to permanently delete the backend volume. The `-v` flag removes named volumes, which includes your SQLite database and persisted secrets. Omit `-v` entirely when upgrading.
+</Warning>
+
+<Note>
+  Only add `--remove-orphans` to the `down` command if you previously ran a different Compose file for the same project name and need to remove old or renamed services.
+</Note>
+
+## Pinning to a specific version
+
+By default, `docker-compose.prod.yml` uses the `:latest` tag. For reproducible upgrades and easier rollbacks, pin your images to a specific release version. The current release is `0.4.28`.
+
+<CodeGroup>
+```yaml Stable release (recommended)
+services:
+  backend:
+    image: zimengxiong/excalidash-backend:0.4.28
+  frontend:
+    image: zimengxiong/excalidash-frontend:0.4.28
+```
+
+```yaml Rolling pre-release (:dev)
+services:
+  backend:
+    image: zimengxiong/excalidash-backend:dev
+  frontend:
+    image: zimengxiong/excalidash-frontend:dev
+```
+
+```yaml Pinned pre-release build
+services:
+  backend:
+    image: zimengxiong/excalidash-backend:0.4.28-dev
+  frontend:
+    image: zimengxiong/excalidash-frontend:0.4.28-dev
+```
+</CodeGroup>
+
+**Tag summary:**
+
+| Tag pattern | Description |
+| --- | --- |
+| `:<VERSION>` (e.g. `:0.4.28`) | Stable release. Also published as `:latest`. |
+| `:dev` | Rolling pre-release. Tracks the latest dev build. Does not update `:latest`. |
+| `:<VERSION>-dev` | Pinned pre-release build for a specific version. |
+
+<Tip>
+  Pinning to a stable version tag makes it straightforward to roll back: update the tag in your Compose file and run `pull` + `up -d` again.
+</Tip>
+
+## Verify the upgrade
+
+After upgrading, confirm the containers are healthy:
+
+```bash
+docker compose -f docker-compose.prod.yml ps
+```
+
+Check backend logs for any migration or startup errors:
+
+```bash
+docker compose -f docker-compose.prod.yml logs backend --tail=200
+```
+
+## Release notes
+
+See the [GitHub Releases page](https://github.com/ZimengXiong/ExcaliDash/releases) for the changelog for each version before upgrading.

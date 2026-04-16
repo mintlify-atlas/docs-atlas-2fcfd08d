@@ -1,0 +1,56 @@
+---
+title: "ExcaliDash: self-hosted Excalidraw dashboard and organizer"
+description: "ExcaliDash gives you persistent storage, live collaboration, and multi-user auth for all your Excalidraw drawings — on your own infrastructure."
+---
+
+ExcaliDash is a self-hosted dashboard and organizer for [Excalidraw](https://github.com/excalidraw/excalidraw) drawings. Instead of losing sketches across browser tabs or local files, ExcaliDash gives you a central place to save, search, and organize everything — with real-time collaboration built in. You run it on your own infrastructure, so your data stays where you put it.
+
+## Who it's for
+
+ExcaliDash is for individuals, teams, and homelab operators who use Excalidraw regularly and want durable, searchable storage without relying on a third-party cloud service. It suits anyone who needs multi-user access, wants to enforce authentication, or simply prefers owning their own data.
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="Persistent drawing storage" icon="floppy-disk">
+    All your drawings are saved automatically in a SQLite-backed store. No more lost work between browser sessions.
+  </Card>
+  <Card title="Real-time collaboration" icon="users">
+    Multiple users can edit the same drawing simultaneously with live presence — powered by Socket.IO.
+  </Card>
+  <Card title="Collections" icon="folder">
+    Drag and drop drawings into named collections to keep projects and topics organized.
+  </Card>
+  <Card title="Search" icon="magnifying-glass">
+    Find any drawing by name across your entire library instantly.
+  </Card>
+  <Card title="Export and import" icon="arrow-right-arrow-left">
+    Back up and restore drawings in the open `.excalidraw` format — no proprietary lock-in.
+  </Card>
+  <Card title="Scoped sharing" icon="share-nodes">
+    Share individual drawings internally or generate external links with controlled access.
+  </Card>
+  <Card title="Flexible authentication" icon="lock">
+    Use local email/password login, OIDC single sign-on, or enforce OIDC-only access for your organization.
+  </Card>
+  <Card title="Admin controls" icon="shield-halved">
+    Bootstrap a first admin account, manage users, and recover access via the built-in admin dashboard.
+  </Card>
+</CardGroup>
+
+## Where to go next
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Deploy ExcaliDash with Docker Compose in a few commands and open the dashboard at localhost:6767.
+  </Card>
+  <Card title="Docker deployment" icon="docker" href="/deployment/docker">
+    Learn about deployment options, volume management, and environment configuration.
+  </Card>
+  <Card title="Authentication" icon="key" href="/authentication/overview">
+    Configure local login, OIDC, or hybrid auth for your deployment.
+  </Card>
+  <Card title="Features" icon="star" href="/features/drawings">
+    Explore drawings, collections, sharing, collaboration, and import/export in depth.
+  </Card>
+</CardGroup>

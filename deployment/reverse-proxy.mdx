@@ -1,0 +1,146 @@
+---
+title: 'Configure a Reverse Proxy or Traefik for ExcaliDash'
+description: 'Route ExcaliDash through Traefik, Nginx, or another reverse proxy. Covers TLS termination, environment variables, and Kubernetes service DNS patterns.'
+---
+
+Running ExcaliDash directly on port `6767` is fine for local testing, but a production deployment should sit behind a reverse proxy. A proxy handles TLS termination, routes traffic under a custom domain, and lets you apply rate limits and security headers at the edge. ExcaliDash's frontend container already includes an Nginx process that proxies `/api/` and `/socket.io/` paths to the backend — you only need to point your outer gateway at the frontend container's port `80`.
+
+## How internal routing works
+
+The frontend container runs Nginx with a templated configuration. At container startup, the `BACKEND_URL` environment variable is injected into `nginx.conf.template` so that:
+
+- Requests to `/api/*` are proxied to the backend's HTTP API.
+- Requests to `/socket.io/*` are proxied to the backend's WebSocket endpoint.
+
+All other requests are served as static React assets. This means your reverse proxy only needs one upstream: the frontend container on port `80`.
+
+## Environment variables
+
+Configure these variables in your Compose file when adding a reverse proxy layer:
+
+| Variable | Container | Purpose |
+|---|---|---|
+| `FRONTEND_URL` | backend | Comma-separated list of allowed origins. Must match the public URL(s) users access. |
+| `TRUST_PROXY` | backend | Set to `1` when one trusted reverse-proxy hop forwards headers to the backend. |
+| `BACKEND_URL` | frontend | Host and port the frontend Nginx uses to reach the backend. Override for non-default DNS names. |
+| `ENFORCE_HTTPS_REDIRECT` | backend | Set to `false` when the outer gateway already enforces HTTPS, to avoid redirect loops. Default: `true`. |
+
+### FRONTEND_URL
+
+The backend validates the `Origin` header on every API and WebSocket request against this list. Set it to the exact public address — including the scheme and any non-standard port — that browsers use to load ExcaliDash. If you allow both a domain and a local IP, comma-separate them:
+
+```
+FRONTEND_URL=https://excalidash.example.com
+# or multiple origins:
+FRONTEND_URL=https://excalidash.example.com,http://192.168.1.100:6767
+```
+
+### TRUST_PROXY
+
+The backend is an Express application. Setting `TRUST_PROXY=1` tells Express to trust one forwarding hop and use the `X-Forwarded-For` / `X-Forwarded-Proto` headers set by your gateway. Only enable this when your reverse proxy sanitizes those headers — never when traffic can reach the backend directly from the internet.
+
+### BACKEND_URL
+
+Injected into the frontend Nginx template at container startup. Use this variable when the backend is not reachable via the default `backend:8000` service alias — for example, in Kubernetes where service DNS names follow a different convention.
+
+### ENFORCE_HTTPS_REDIRECT
+
+When `FRONTEND_URL` starts with `https://`, the backend automatically redirects plain-HTTP requests to HTTPS. If your outer gateway already enforces HTTPS and does not forward `X-Forwarded-Proto`, this can cause redirect loops. Set `ENFORCE_HTTPS_REDIRECT=false` to disable the built-in redirect:
+
+```yaml
+- ENFORCE_HTTPS_REDIRECT=false
+```
+
+## Docker Compose example
+
+The following example shows a minimal Compose override for a single-hop reverse proxy scenario where Traefik or another gateway terminates TLS and forwards to the frontend on port `6767`:
+
+```yaml docker-compose.yml
+services:
+  backend:
+    environment:
+      # Public URL users access — must match exactly
+      - FRONTEND_URL=https://excalidash.example.com
+      # Trust exactly one reverse-proxy hop
+      - TRUST_PROXY=1
+      # Disable built-in redirect if the outer gateway handles HTTPS
+      # and does not forward X-Forwarded-Proto
+      - ENFORCE_HTTPS_REDIRECT=false
+
+  frontend:
+    environment:
+      # Default for standard Docker Compose service DNS
+      - BACKEND_URL=backend:8000
+```
+
+<Note>
+  The `BACKEND_URL` value must be in `host:port` format without a protocol prefix. Nginx prepends `http://` internally when building the upstream URL.
+</Note>
+
+## Traefik example
+
+When using Traefik as your outer gateway, add labels to the frontend service and let Traefik handle TLS via Let's Encrypt. The backend service does not need Traefik labels because all external traffic enters through the frontend container:
+
+```yaml docker-compose.yml
+services:
+  backend:
+    environment:
+      - FRONTEND_URL=https://excalidash.example.com
+      - TRUST_PROXY=1
+      - ENFORCE_HTTPS_REDIRECT=false
+    networks:
+      - excalidash-network
+
+  frontend:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.excalidash.rule=Host(`excalidash.example.com`)"
+      - "traefik.http.routers.excalidash.entrypoints=websecure"
+      - "traefik.http.routers.excalidash.tls.certresolver=letsencrypt"
+      - "traefik.http.services.excalidash.loadbalancer.server.port=80"
+    environment:
+      - BACKEND_URL=backend:8000
+    networks:
+      - excalidash-network
+      - traefik-public
+
+networks:
+  excalidash-network:
+    driver: bridge
+  traefik-public:
+    external: true
+```
+
+<Tip>
+  Ensure Traefik is attached to the same `traefik-public` network (or whichever external network your Traefik instance uses) and that your Traefik config defines the `websecure` entrypoint on port 443.
+</Tip>
+
+## Kubernetes
+
+In Kubernetes, the backend is deployed as a separate Service. The frontend pod cannot resolve `backend:8000` via Docker Compose service DNS — set `BACKEND_URL` to the full Kubernetes service DNS name instead:
+
+```yaml
+frontend:
+  environment:
+    - BACKEND_URL=excalidash-backend.default.svc.cluster.local:8000
+```
+
+Replace `default` with your actual namespace if the services are not deployed in the default namespace.
+
+<Warning>
+  In Kubernetes, `TRUST_PROXY` and `FRONTEND_URL` still apply to the backend Deployment. Make sure your ingress controller sets `X-Forwarded-Proto` correctly, and that `FRONTEND_URL` matches the hostname exposed by your Ingress resource. Auth flows and WebSocket upgrades both depend on these headers being consistent.
+</Warning>
+
+## Verifying the configuration
+
+After starting the stack, confirm that:
+
+1. The frontend loads at your public URL over HTTPS.
+2. API calls in the browser's network tab target `/api/` (not a direct backend address).
+3. Live collaboration (drawing together in a shared session) works — this exercises the `/socket.io/` WebSocket path through the full proxy chain.
+
+If auth or WebSockets fail, check the backend logs for CORS or proxy-related errors:
+
+```bash
+docker compose -f docker-compose.prod.yml logs backend --tail=200
+```

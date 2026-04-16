@@ -1,0 +1,152 @@
+---
+title: "Contributing to ExcaliDash"
+description: "How to contribute code, report bugs, and work within the ExcaliDash codebase — including workflow philosophy, repo layout, and testing commands."
+---
+
+ExcaliDash welcomes contributions. Whether you are fixing a bug, improving the editor experience, or adding a feature, the sections below cover how to get oriented in the codebase, run tests, and file a well-formed issue. Pull requests are welcome — see the badge in the README.
+
+## Getting your dev environment running
+
+Follow the [local setup guide](/development/local-setup) to install dependencies, configure the backend and frontend, and start both services. The short version:
+
+```bash
+git clone git@github.com:ZimengXiong/ExcaliDash.git
+cd ExcaliDash
+make install
+make dev
+```
+
+`make dev` starts the app in single-user mode with no auth, so you can iterate on UI and editor behavior without going through login or onboarding.
+
+## Contributor workflow philosophy
+
+The project follows a layered approach to understanding behavior before changing it. Before writing any code, confirm what you expect to happen in three layers:
+
+1. **Docs** — check `README.md` and `AGENTS.md` first. Many behavioral decisions are documented there, including why certain defaults exist.
+2. **Runtime wiring** — read the relevant `docker-*.yml`, `Dockerfile`, and entrypoint scripts. Configuration often differs between dev and production modes.
+3. **Source** — only then read `backend/src` or `frontend/src` for the implementation detail.
+
+When you make a change:
+
+- **Preserve patterns** — backend TypeScript lives in `backend/src`; frontend React lives in `frontend/src`. Match the existing file and module structure.
+- **Prefer minimal edits** — the smallest change that fixes the problem is preferred over a refactor. Keep env-sensitive behavior documented before and after your change.
+- **Do not touch migration or secret handling** unless you have been explicitly asked to. These paths have subtle production implications.
+
+## Repository map
+
+Understanding where things live helps you navigate the codebase quickly.
+
+| Path | Contents |
+|---|---|
+| `backend/` | Express API, Prisma schema, auth, Socket.IO handlers, scripts, Dockerfile |
+| `backend/src/config.ts` | Environment variable loading and validation — the config source of truth |
+| `backend/src/index.ts` | Server entry point: middleware, route registration, startup guards |
+| `backend/src/auth.ts` and `backend/src/auth/` | Auth router, OIDC client, bootstrap setup code, token utilities |
+| `backend/src/routes/dashboard/` | Drawing, collection, library, and trash route handlers |
+| `backend/src/server/socket.ts` | Socket.IO event handlers for real-time collaboration |
+| `backend/prisma/schema.prisma` | Database schema |
+| `frontend/` | React UI, API client, Vite build pipeline, Dockerfile |
+| `frontend/src/api/index.ts` | Centralized API client — all HTTP and auth calls |
+| `frontend/src/pages/Editor.tsx` | Excalidraw canvas and Socket.IO collaboration wiring |
+| `frontend/src/context/` | `AuthContext` and `ThemeContext` |
+| `frontend/vite.config.ts` | Vite dev proxy and compile-time build metadata |
+| `e2e/` | Playwright end-to-end tests |
+| `docker-compose.yml` | Local source-build compose setup |
+| `docker-compose.prod.yml` | Production compose using published Docker Hub images |
+| `Makefile` | Repo-wide orchestration commands |
+
+See the [architecture overview](/development/architecture) for a deeper walkthrough of each layer.
+
+## Running tests
+
+### Unit tests
+
+Run the full unit test suite (frontend + backend):
+
+```bash
+make test
+```
+
+Run frontend or backend tests individually:
+
+```bash
+make test-frontend   # cd frontend && npm test (Vitest)
+make test-backend    # cd backend && npm test (Vitest)
+```
+
+### All tests including E2E
+
+```bash
+make test-all
+```
+
+### E2E tests only
+
+```bash
+make test-e2e
+```
+
+E2E tests use Playwright and start the backend and frontend automatically. To run against an already-running stack:
+
+```bash
+cd e2e
+NO_SERVER=true npm test
+```
+
+To run E2E in Docker:
+
+```bash
+make test-e2e-docker
+```
+
+## Linting
+
+```bash
+make lint
+```
+
+This runs the ESLint configuration for the frontend. Backend linting is not currently configured.
+
+## Building for production
+
+```bash
+make build
+```
+
+This runs `npm run build` in both `backend/` and `frontend/`. The backend build runs `prisma generate` then `tsc`. The frontend build runs TypeScript checking, then Vite, then copies Excalidraw assets into the dist directory.
+
+## Filing issues
+
+If you find a bug or something is unclear in the docs, open an issue at:
+
+**[https://github.com/ZimengXiong/ExcaliDash/issues](https://github.com/ZimengXiong/ExcaliDash/issues)**
+
+To help maintainers reproduce and triage quickly, include the following in your report:
+
+| Field | What to provide |
+|---|---|
+| Deployment mode | Docker Hub compose (`docker-compose.prod.yml`), repo compose (`docker-compose.yml`), `make`, or direct `npm` |
+| Version | App version tag or image tags; `VERSION` file contents if building from source |
+| OS / arch | For example `linux/arm64` or `macOS/arm64`; note if you are behind a reverse proxy |
+| Sanitized env vars | `AUTH_MODE`, `TRUST_PROXY`, `FRONTEND_URL` — do not include secrets |
+| Logs | Output of `docker compose logs backend --tail=200` and the exact error text |
+| Repro steps | Minimal steps to reproduce; include expected vs actual behavior |
+
+<Tip>
+If you can pinpoint the root cause and link to the relevant file and line number, include that in the issue. It significantly speeds up the fix.
+</Tip>
+
+## License
+
+ExcaliDash is licensed under the [GNU Affero General Public License v3.0 (AGPL-3.0)](https://github.com/ZimengXiong/ExcaliDash/blob/main/LICENSE). Contributions you submit are understood to be under the same license.
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Local setup" icon="terminal" href="/development/local-setup">
+    Prerequisites, step-by-step setup, and Makefile command reference.
+  </Card>
+  <Card title="Architecture overview" icon="sitemap" href="/development/architecture">
+    How the backend, frontend, and containers fit together.
+  </Card>
+</CardGroup>

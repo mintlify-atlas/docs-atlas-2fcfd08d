@@ -1,0 +1,106 @@
+---
+title: "ExcaliDash authentication: modes, bootstrap, and onboarding"
+description: "ExcaliDash supports no-auth single-user mode, native email/password login, and OIDC single sign-on. Choose the right mode for your deployment."
+---
+
+ExcaliDash ships with a flexible authentication system designed to cover everything from a private single-user install to a multi-user team deployment with SSO. You control the mode through a single environment variable — `AUTH_MODE` — and ExcaliDash handles the rest, including a one-time bootstrap flow to create the first admin account on a fresh install.
+
+## Auth modes
+
+The `AUTH_MODE` variable on the backend container selects between three login behaviors.
+
+| `AUTH_MODE` | Behavior |
+|---|---|
+| `local` (default) | Native email/password login only. Users register and sign in with an email address and password managed by ExcaliDash. |
+| `hybrid` | Native login plus OIDC login. Users can choose either method at the login screen. |
+| `oidc_enforced` | OIDC-only login. The `/auth/register` and `/auth/login` endpoints are disabled; all authentication goes through your identity provider. |
+
+<Note>
+`AUTH_MODE` defaults to `local` when the variable is not set. If you have not set `AUTH_MODE` at all, see the no-auth section below.
+</Note>
+
+## No-auth mode (single-user, no login required)
+
+When authentication is not yet configured and a fresh install has not completed the onboarding flow, ExcaliDash operates in a no-auth, single-user mode. There is no login screen — the dashboard is accessible directly. This is the default state for a new deployment before the operator has made an authentication choice.
+
+This mode is suitable for a private instance used by one person. As soon as you enable auth through the onboarding flow or by setting `AUTH_MODE`, the login gate activates.
+
+## Choosing an auth mode
+
+<CardGroup cols={2}>
+  <Card title="Local auth" icon="user" href="/authentication/local">
+    Set `AUTH_MODE=local` for native email/password accounts managed entirely within ExcaliDash. Good for small teams that do not have a central identity provider.
+  </Card>
+  <Card title="OIDC / SSO" icon="key" href="/authentication/oidc">
+    Set `AUTH_MODE=hybrid` or `AUTH_MODE=oidc_enforced` to connect Authentik, Keycloak, or any standards-compliant OIDC provider.
+  </Card>
+</CardGroup>
+
+## First-admin bootstrap flow
+
+On a fresh install with local auth enabled, ExcaliDash requires a one-time setup code to protect the initial admin registration. The backend generates this code automatically and writes it to the container logs.
+
+<Steps>
+  <Step title="Start the backend container">
+    Bring up your stack normally. The bootstrap code is printed to the backend log on startup.
+
+    ```bash
+    docker compose -f docker-compose.prod.yml up -d
+    ```
+  </Step>
+  <Step title="Retrieve the setup code from logs">
+    Filter the backend logs to find the `[BOOTSTRAP SETUP]` line.
+
+    ```bash
+    docker compose -f docker-compose.prod.yml logs backend --tail=200 | grep "BOOTSTRAP SETUP"
+    ```
+
+    The output looks like:
+
+    ```
+    [BOOTSTRAP SETUP] One-time admin setup code: XXXXXXXX
+    ```
+  </Step>
+  <Step title="Complete registration in the UI">
+    Open ExcaliDash in your browser. The onboarding UI prompts you for the setup code, then guides you through creating your admin account.
+  </Step>
+</Steps>
+
+<Warning>
+The bootstrap setup code is **single-use**. If you enter an invalid or expired code, ExcaliDash refreshes the code and prints a new one to the backend logs. By default the code expires after 15 minutes (`BOOTSTRAP_SETUP_CODE_TTL_MS=900000`). Check logs again for the updated code.
+</Warning>
+
+<Tip>
+For `oidc_enforced` mode, the local bootstrap registration flow is not used. Your first admin is typically the first user who signs in via OIDC when `OIDC_FIRST_USER_ADMIN=true` (the default).
+</Tip>
+
+## Onboarding gate
+
+On a new install, ExcaliDash shows an onboarding screen that asks whether to enable authentication. This gate ensures the operator makes a deliberate choice before the instance is exposed to users.
+
+If the onboarding gate is blocking your access in an emergency — for example, after a migration — you can bypass it temporarily:
+
+```bash
+DISABLE_ONBOARDING_GATE=true docker compose -f docker-compose.prod.yml up -d
+```
+
+<Warning>
+`DISABLE_ONBOARDING_GATE=true` is an emergency escape hatch. Remove it once you have completed the onboarding flow or restored admin access. It is not recommended for normal production use.
+</Warning>
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Local auth setup" icon="user-lock" href="/authentication/local">
+    Enable email/password accounts, bootstrap the first admin, and configure password reset.
+  </Card>
+  <Card title="OIDC setup" icon="building-shield" href="/authentication/oidc">
+    Connect an OIDC provider, configure JIT provisioning, and enforce SSO-only login.
+  </Card>
+  <Card title="Admin management" icon="shield-halved" href="/authentication/admin">
+    Manage users, recover admin access, and enable audit logging.
+  </Card>
+  <Card title="Environment variables" icon="sliders" href="/configuration/environment-variables">
+    Full reference for all backend environment variables.
+  </Card>
+</CardGroup>

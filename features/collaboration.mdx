@@ -1,0 +1,78 @@
+---
+title: "Real-time collaboration on drawings in ExcaliDash"
+description: "Work on a drawing simultaneously with others using live cursor presence and real-time element sync powered by WebSocket connections via Socket.IO."
+---
+
+ExcaliDash supports live collaboration directly inside the editor. When two or more people have the same drawing open at the same time, they see each other's cursors and watch element changes appear in real time — no manual refresh required. Collaboration is built on WebSocket connections using Socket.IO and works alongside the existing sharing and access control system.
+
+## Starting a collaboration session
+
+There is no separate "start collaboration" step. Any drawing that is open in the editor is automatically in a live session. To invite someone to collaborate:
+
+<Steps>
+  <Step title="Open the drawing">
+    Navigate to the drawing from your dashboard or the **Shared with me** view.
+  </Step>
+  <Step title="Share access">
+    Click **Share** in the editor header. Grant the other person **Edit** permission via internal sharing, or generate an external link with **Edit** permission. See [Sharing](/features/sharing) for full details.
+  </Step>
+  <Step title="Send the URL">
+    Once the other person opens the drawing, you will see their cursor appear on the canvas automatically.
+  </Step>
+</Steps>
+
+<Tip>
+  If you just want to share the current URL directly (for example, with someone who already has access), copy it from the browser address bar. Anyone with edit access to the drawing can join the same live session.
+</Tip>
+
+## Presence indicators
+
+When collaborators are in the drawing, you can see:
+
+- **Live cursors** — each collaborator's cursor is shown on the canvas with their name and a unique color. Cursor positions update in near real time.
+- **Active state** — when a collaborator switches to another tab or moves their mouse out of the window, their cursor fades to indicate they are inactive. It reappears when they return.
+- **Collaborator list** — the header area shows avatar indicators for everyone currently in the session.
+
+## How changes sync
+
+Element changes are broadcast over WebSocket as you draw. The sync is optimized to send only the elements that have changed since the last broadcast, not the full scene on every update. The editor merges incoming changes from collaborators without interrupting your own editing.
+
+Images and other embedded files are also synced — only the file delta (new files you have not seen before) is transmitted to avoid redundant transfers.
+
+Changes are also auto-saved to the database as you work, so the drawing is always persisted regardless of who is currently in the session.
+
+## Single-backend limitation
+
+Collaboration state — including which users are in a session and their cursor positions — is held **in memory in the backend process**. This means collaboration only works correctly when all users connect to the **same backend instance**.
+
+<Warning>
+  If you run multiple backend replicas (horizontal scaling), each replica maintains its own in-memory presence state. Users connected to different replicas will not see each other's cursors or receive each other's element updates. ExcaliDash currently supports a single backend replica for collaboration to work correctly.
+</Warning>
+
+See the [scaling documentation](/deployment/scaling) for more on this constraint and the recommended single-replica deployment pattern.
+
+## Access levels and editing
+
+Collaboration respects the sharing permission model:
+
+| Access level | Can draw and save | Sees others' cursors |
+|---|---|---|
+| **Owner** | Yes | Yes |
+| **Edit** | Yes | Yes |
+| **View** | No | Yes (read-only) |
+
+Users with view-only access can follow the session and see changes in real time, but their changes are not saved and are not broadcast to other collaborators.
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Sharing" icon="share-nodes" href="/features/sharing">
+    Grant edit access to collaborators via internal sharing or external links.
+  </Card>
+  <Card title="Drawings" icon="pencil" href="/features/drawings">
+    Manage and organize your drawings from the dashboard.
+  </Card>
+  <Card title="Scaling" icon="server" href="/deployment/scaling">
+    Understand the single-backend constraint and deployment recommendations.
+  </Card>
+</CardGroup>

@@ -1,0 +1,130 @@
+---
+title: "ExcaliDash admin: user management and access recovery"
+description: "Manage users and roles from the admin dashboard, recover locked-out admin accounts with the backend recovery script, and enable audit event logging."
+---
+
+ExcaliDash includes an admin dashboard for managing users, toggling registration, and reviewing audit events. For emergencies where the dashboard is inaccessible — for example, a lost admin password — the backend ships a recovery script that operates directly on the database without requiring a working login session.
+
+## Admin dashboard
+
+Users with the admin role have access to the admin dashboard from within the ExcaliDash UI. From there you can:
+
+- View all registered users and their roles
+- Activate or deactivate accounts
+- Promote users to the admin role
+- Toggle open registration on or off
+- Review audit log entries when audit logging is enabled
+
+<Note>
+The admin dashboard is only available when authentication is enabled (`AUTH_MODE` is set, or auth was enabled through the onboarding flow). In no-auth single-user mode there is no user management UI.
+</Note>
+
+## Auth mode and registration settings
+
+The `AUTH_MODE` environment variable controls which login flows are available to users. Admins can also toggle open registration from the dashboard or via the `AUTH_MODE` configuration.
+
+| `AUTH_MODE` | Registration available | Local login | OIDC login |
+|---|---|---|---|
+| `local` | Yes (if enabled) | Yes | No |
+| `hybrid` | Yes (if enabled) | Yes | Yes |
+| `oidc_enforced` | No (disabled) | No | Yes |
+
+<Warning>
+In `oidc_enforced` mode, local registration and login endpoints are disabled at the API level. Even if `registrationEnabled` is `true` in the database, the `/auth/register` and `/auth/login` routes return `403 Forbidden`.
+</Warning>
+
+## Audit logging
+
+Audit logging is **disabled by default**. Enable it to record authentication events — logins, failed login attempts, registrations, and bootstrap actions — to the database.
+
+```yaml
+backend:
+  environment:
+    - ENABLE_AUDIT_LOGGING=true
+```
+
+Once enabled, audit events appear in the admin dashboard under the audit log section. Logged event types include:
+
+- `login` — successful login
+- `login_failed` — failed login attempt (with identifier, no password data)
+- `user_registered` — new user account created
+- `bootstrap_admin` — first admin account bootstrapped
+
+## Emergency admin recovery
+
+If you are locked out of your ExcaliDash instance — for example, because the admin password was forgotten, the account was deactivated, or there are no active admin accounts — use the `admin:recover` script to restore access directly on the backend container.
+
+<Steps>
+  <Step title="Identify the admin account">
+    You need the email address (or username) of the account you want to recover or promote. If you do not know it, check the database or backend logs.
+  </Step>
+  <Step title="Run the recovery script">
+    Execute the script inside the running backend container. The example below generates a random password, activates the account, promotes it to admin, and forces a password reset on next login.
+
+    <CodeGroup>
+
+    ```bash Docker Compose (production)
+    docker compose -f docker-compose.prod.yml exec backend \
+      npm run admin:recover -- \
+        --identifier admin@example.com \
+        --generate \
+        --activate \
+        --promote \
+        --must-reset
+    ```
+
+    ```bash Local repository
+    cd backend
+    npm run admin:recover -- \
+      --identifier admin@example.com \
+      --generate \
+      --activate \
+      --promote \
+      --must-reset
+    ```
+
+    </CodeGroup>
+
+    The terminal prints the generated password. Copy it — you will need it to log in.
+  </Step>
+  <Step title="Log in with the recovered credentials">
+    Open ExcaliDash in your browser and sign in with the email address and the password printed by the script. If you used `--must-reset`, you will be prompted to set a new password immediately after login.
+  </Step>
+</Steps>
+
+### Recovery script flags
+
+| Flag | Description |
+|---|---|
+| `--identifier <email>` | Email address or username of the account to recover. |
+| `--password "<new-password>"` | Set an explicit new password directly. |
+| `--generate` | Generate a cryptographically secure random password and print it to the terminal. |
+| `--activate` | Activate the account if it is currently deactivated. |
+| `--promote` | Promote the account to the admin role. |
+| `--must-reset` | Force a password reset the next time the user logs in. |
+| `--disable-login-rate-limit` | Temporarily disable login throttling for this operation. Useful if repeated failed recovery attempts have triggered the rate limiter. |
+
+<Tip>
+Combine `--generate` and `--must-reset` for the safest recovery: you get a one-time password that the admin must immediately replace with a permanent one of their choosing.
+</Tip>
+
+<Warning>
+The recovery script writes directly to the database. Only use it when normal login or dashboard access is not possible. Always combine `--generate` or `--password` with `--must-reset` to avoid leaving a known credential in place after recovery.
+</Warning>
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Authentication overview" icon="shield" href="/authentication/overview">
+    Understand auth modes, the bootstrap flow, and the onboarding gate.
+  </Card>
+  <Card title="Local auth setup" icon="user-lock" href="/authentication/local">
+    Bootstrap the first admin account and enable password reset.
+  </Card>
+  <Card title="OIDC setup" icon="key" href="/authentication/oidc">
+    Connect an OIDC provider and configure JIT provisioning.
+  </Card>
+  <Card title="Environment variables" icon="sliders" href="/configuration/environment-variables">
+    Full reference for all backend environment variables including audit and rate limit controls.
+  </Card>
+</CardGroup>

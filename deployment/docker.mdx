@@ -1,0 +1,209 @@
+---
+title: 'Deploy ExcaliDash with Docker and Docker Compose'
+description: 'Run ExcaliDash in production using pre-built Docker Hub images or a local source build. Covers both deployment methods and production hardening steps.'
+---
+
+Docker is the recommended and officially supported way to run ExcaliDash in production. The project ships two Compose files: `docker-compose.prod.yml` for Docker Hub images (fastest path to production) and `docker-compose.yml` for building from source. Both expose the frontend on port `6767` and keep the backend internal on port `8000`.
+
+<Warning>
+  ExcaliDash is in **BETA**. Production readiness depends on your deployment controls: use TLS, a trusted reverse proxy, fixed secrets, regular backups, and endpoint rate limits before exposing the service to the internet.
+</Warning>
+
+## Prerequisites
+
+- Docker Engine 24+ with the Compose v2 plugin (`docker compose`)
+- A Linux host or any OS with Docker Desktop installed
+
+## Deployment methods
+
+<Tabs>
+  <Tab title="Docker Hub (recommended)">
+    The fastest path to a running instance. Pull pre-built images from Docker Hub without cloning the repository.
+
+    <Steps>
+      <Step title="Download the Compose file">
+        ```bash
+        curl -OL https://raw.githubusercontent.com/ZimengXiong/ExcaliDash/main/docker-compose.prod.yml
+        ```
+      </Step>
+      <Step title="Pull the latest images">
+        ```bash
+        docker compose -f docker-compose.prod.yml pull
+        ```
+      </Step>
+      <Step title="Start the containers">
+        ```bash
+        docker compose -f docker-compose.prod.yml up -d
+        ```
+      </Step>
+      <Step title="Open the frontend">
+        Navigate to [http://localhost:6767](http://localhost:6767) in your browser.
+      </Step>
+    </Steps>
+  </Tab>
+  <Tab title="Docker Build from source">
+    Build the images locally from the repository. Useful for development or when you need to test unreleased changes.
+
+    <Steps>
+      <Step title="Clone the repository">
+        ```bash
+        git clone git@github.com:ZimengXiong/ExcaliDash.git
+        # or with HTTPS:
+        # git clone https://github.com/ZimengXiong/ExcaliDash.git
+        ```
+      </Step>
+      <Step title="Build the images">
+        ```bash
+        docker compose build
+        ```
+      </Step>
+      <Step title="Start the containers">
+        ```bash
+        docker compose up -d
+        ```
+      </Step>
+      <Step title="Open the frontend">
+        Navigate to [http://localhost:6767](http://localhost:6767) in your browser.
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+## Compose file structure
+
+The `docker-compose.prod.yml` file defines two services, a shared bridge network, and a named volume for backend persistence:
+
+```yaml docker-compose.prod.yml
+services:
+  backend:
+    image: zimengxiong/excalidash-backend:latest
+    container_name: excalidash-backend
+    environment:
+      - DATABASE_URL=file:/app/prisma/dev.db
+      - PORT=8000
+      - NODE_ENV=production
+      - AUTH_MODE=${AUTH_MODE:-local}
+      - TRUST_PROXY=false
+      - JWT_SECRET=${JWT_SECRET}
+      - CSRF_SECRET=${CSRF_SECRET}
+    volumes:
+      - backend-data:/app/prisma
+    networks:
+      - excalidash-network
+    restart: unless-stopped
+
+  frontend:
+    image: zimengxiong/excalidash-frontend:latest
+    container_name: excalidash-frontend
+    ports:
+      - "6767:80"
+    depends_on:
+      - backend
+    networks:
+      - excalidash-network
+    restart: unless-stopped
+
+networks:
+  excalidash-network:
+    driver: bridge
+
+volumes:
+  backend-data:
+```
+
+<Note>
+  The backend is not exposed on any host port by default — only the frontend (port `6767`) is reachable from outside the Docker network. Internal communication between the frontend Nginx proxy and the backend happens over the `excalidash-network` bridge.
+</Note>
+
+## Production hardening checklist
+
+Before exposing ExcaliDash to the internet, work through the following items.
+
+### Pin images to a specific version tag
+
+Using `:latest` makes upgrades unpredictable. Pin to a stable release tag so you can reproduce and roll back any deployment:
+
+```yaml
+services:
+  backend:
+    image: zimengxiong/excalidash-backend:0.4.28
+  frontend:
+    image: zimengxiong/excalidash-frontend:0.4.28
+```
+
+Stable tags follow the pattern `zimengxiong/excalidash-backend:<VERSION>`. Pre-release images use the `:dev` suffix and do not update `:latest`.
+
+### Set fixed JWT_SECRET and CSRF_SECRET
+
+For single-container deployments, both secrets can be omitted — the backend auto-generates and persists them in the backend volume on first start. For all other production scenarios (explicit portability, redeployments, multi-instance setups), set them explicitly so sessions remain valid across restarts:
+
+```bash
+# Generate strong secrets (Linux/macOS)
+openssl rand -hex 32   # use output for JWT_SECRET
+openssl rand -hex 32   # use output for CSRF_SECRET
+```
+
+Pass them as environment variables or via a `.env` file alongside your Compose file:
+
+```bash .env
+JWT_SECRET=your-strong-random-secret-here
+CSRF_SECRET=another-strong-random-secret-here
+```
+
+### Set FRONTEND_URL to your public URL
+
+The backend uses `FRONTEND_URL` as its CORS origin allow-list. Set it to the public address users will access, for example:
+
+```yaml
+backend:
+  environment:
+    - FRONTEND_URL=https://excalidash.example.com
+```
+
+Comma-separate multiple values if you need to allow more than one origin:
+
+```yaml
+- FRONTEND_URL=https://excalidash.example.com,http://192.168.1.100:6767
+```
+
+### Keep TRUST_PROXY=false unless behind a trusted proxy
+
+Both Compose files default to `TRUST_PROXY=false`. Only raise this to a positive hop count (for example `1`) when you are certain that every request passes through a trusted reverse proxy that sanitizes forwarded headers before reaching the backend. Setting it incorrectly allows clients to spoof their IP address.
+
+### Back up the backend volume
+
+All persistent data — the SQLite database and auto-generated secrets — lives in the `backend-data` named volume, mounted at `/app/prisma` inside the container. Use your host's volume backup tooling or a scheduled `docker run` to copy this path regularly.
+
+<Tip>
+  Do not add `-v` to `docker compose down` unless you intentionally want to delete the volume and all stored data.
+</Tip>
+
+## Upgrading
+
+Pull the latest (or a pinned) image and recreate containers in one step:
+
+```bash
+docker compose -f docker-compose.prod.yml pull && \
+  docker compose -f docker-compose.prod.yml up -d
+```
+
+For a cleaner stop/start cycle at the cost of a brief downtime window:
+
+```bash
+docker compose -f docker-compose.prod.yml down && \
+  docker compose -f docker-compose.prod.yml pull && \
+  docker compose -f docker-compose.prod.yml up -d
+```
+
+## Checking health
+
+```bash
+# Container status
+docker compose -f docker-compose.prod.yml ps
+
+# Backend logs (last 200 lines)
+docker compose -f docker-compose.prod.yml logs backend --tail=200
+
+# Follow live backend output
+docker compose -f docker-compose.prod.yml logs -f backend
+```

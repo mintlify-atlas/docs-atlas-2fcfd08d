@@ -1,0 +1,90 @@
+---
+title: 'ExcaliDash feature flags and runtime toggles'
+description: 'Reference for every feature flag and operational toggle in ExcaliDash — control authentication flows, HTTPS enforcement, migrations, caching, and more.'
+---
+
+ExcaliDash exposes a set of boolean environment variables that act as feature flags and operational toggles. Unlike the core environment variables, these do not change *what* the server connects to — they change *how* it behaves at runtime. Most flags have safe defaults that work out of the box; you only need to change them when your deployment environment has specific requirements.
+
+<Note>
+  All flags are read at startup from environment variables. Changes require a container or process restart to take effect.
+</Note>
+
+## Authentication flags
+
+| Flag | Default | Description | When to change it |
+|---|---|---|---|
+| `ENABLE_PASSWORD_RESET` | `false` | Enables the password reset flow, allowing users to request a reset email. | Enable when your deployment has a working outbound email integration and you want to support self-service password recovery. |
+| `ENABLE_REFRESH_TOKEN_ROTATION` | `true` | When enabled, each use of a refresh token issues a new refresh token and invalidates the old one. Provides an extra layer of protection against token theft. | Set to `false` only if client-side token storage prevents rotation from working correctly in your environment. |
+
+## HTTPS and proxy flags
+
+| Flag | Default | Description | When to change it |
+|---|---|---|---|
+| `ENFORCE_HTTPS_REDIRECT` | `true` | When `FRONTEND_URL` is an `https://` URL, the backend automatically redirects plain HTTP requests to HTTPS. | Set to `false` when your outer reverse proxy (Nginx, Traefik, Caddy, etc.) already handles HTTPS termination and does not forward `X-Forwarded-Proto` to the backend. Leaving this enabled in that scenario can cause redirect loops. |
+
+<Warning>
+  If you disable `ENFORCE_HTTPS_REDIRECT`, ensure your reverse proxy enforces HTTPS at the edge. Disabling this without a gateway-level redirect means plain HTTP access to the backend will not be upgraded.
+</Warning>
+
+## Observability flags
+
+| Flag | Default | Description | When to change it |
+|---|---|---|---|
+| `ENABLE_AUDIT_LOGGING` | `false` | Enables structured audit event logging for security-relevant actions (login, logout, drawing access, admin operations). | Enable in production deployments where you need an audit trail for compliance or security review. |
+| `DEBUG_CSRF` | *(not set)* | Set to `true` to enable verbose CSRF debug log output. | Use temporarily when troubleshooting CSRF validation failures. Do not leave enabled in production — it produces high log volume. |
+
+## Update check flags
+
+| Flag | Default | Description | When to change it |
+|---|---|---|---|
+| `UPDATE_CHECK_OUTBOUND` | `true` | Controls whether the backend makes outbound requests to the GitHub API to check for new ExcaliDash releases. | Set to `false` for air-gapped deployments or any environment where outbound network calls to GitHub are not permitted. |
+
+## Migration and startup flags
+
+These flags control database migration behavior in the Docker container entrypoint. They are most relevant for Kubernetes and multi-replica deployments.
+
+| Flag | Default | Description | When to change it |
+|---|---|---|---|
+| `RUN_MIGRATIONS` | `true` | When `true` (or `1`), the container entrypoint runs `prisma migrate deploy` before starting the server. | Set to `false` when you run migrations separately (e.g., via a Kubernetes Job or init container) to avoid concurrent migration attempts on multi-replica setups. |
+| `MIGRATION_LOCK_TIMEOUT_SECONDS` | `120` | The maximum number of seconds the entrypoint will wait to acquire the migration lock before aborting startup. | Increase on slow storage or large databases where migrations take longer than two minutes. |
+
+<Tip>
+  For SQLite on Kubernetes, run migrations once via a Job or init container and set `RUN_MIGRATIONS=false` on the main workload to prevent concurrent migration attempts.
+</Tip>
+
+## Onboarding flags
+
+| Flag | Default | Description | When to change it |
+|---|---|---|---|
+| `DISABLE_ONBOARDING_GATE` | *(not set)* | Set to `true` to bypass the first-run onboarding guard that blocks API usage until the authentication mode is configured. | Use only for emergency operator access — for example, when the onboarding screen is blocking access after an unexpected state change. Remove this flag once the situation is resolved. |
+
+<Warning>
+  `DISABLE_ONBOARDING_GATE=true` is not recommended for normal production deployments. The onboarding gate protects your instance from being accessed before authentication is properly configured.
+</Warning>
+
+## Caching flags
+
+| Flag | Default | Description | When to change it |
+|---|---|---|---|
+| `DRAWINGS_CACHE_TTL_MS` | `5000` (5 seconds) | Duration in milliseconds that the drawing list response is held in the backend's in-memory cache. | Increase to reduce database query load on instances with many users listing drawings frequently. Set to `0` to disable caching entirely (useful during development or debugging). |
+
+## Link share TTL flags
+
+These flags control the default and maximum lifetimes for shared drawing links. Shared links created by users will use these defaults unless the user specifies a custom expiry.
+
+| Flag | Default | Description | When to change it |
+|---|---|---|---|
+| `LINK_SHARE_VIEW_DEFAULT_TTL_MS` | `2592000000` (30 days) | Default expiry for view-only shared links, in milliseconds. | Reduce for stricter default sharing policies, or increase if your users typically expect longer-lived view links. |
+| `LINK_SHARE_EDIT_DEFAULT_TTL_MS` | `604800000` (7 days) | Default expiry for edit shared links, in milliseconds. | Reduce to limit how long edit access is granted by default. |
+| `LINK_SHARE_MAX_TTL_MS` | `7776000000` (90 days) | Maximum allowed expiry for any shared link. Users cannot create links with a longer lifetime than this value. | Reduce to enforce a stricter upper bound on how long any shared link can remain valid. |
+
+```yaml
+# docker-compose.prod.yml example — tighter sharing defaults
+backend:
+  environment:
+    # 7-day default for view links, 1-day default for edit links
+    - LINK_SHARE_VIEW_DEFAULT_TTL_MS=604800000
+    - LINK_SHARE_EDIT_DEFAULT_TTL_MS=86400000
+    # Hard cap at 30 days
+    - LINK_SHARE_MAX_TTL_MS=2592000000
+```
